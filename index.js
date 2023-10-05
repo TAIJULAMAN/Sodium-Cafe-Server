@@ -1,4 +1,4 @@
-const jwt = require('jsonwebtoken');
+const jwt = require("jsonwebtoken");
 // const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
 const express = require("express");
 const app = express();
@@ -12,23 +12,26 @@ require("dotenv").config();
 app.use(cors());
 app.use(express.json());
 
-
 const verifyJWT = (req, res, next) => {
   const authorization = req.headers.authorization;
   if (!authorization) {
-    return res.status(401).send({ error: true, message: 'unauthorized access' });
+    return res
+      .status(401)
+      .send({ error: true, message: "unauthorized access" });
   }
   // bearer token
-  const token = authorization.split(' ')[1];
+  const token = authorization.split(" ")[1];
 
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
     if (err) {
-      return res.status(401).send({ error: true, message: 'unauthorized access' })
+      return res
+        .status(401)
+        .send({ error: true, message: "unauthorized access" });
     }
     req.decoded = decoded;
     next();
-  })
-}
+  });
+};
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.rms22hp.mongodb.net/?retryWrites=true&w=majority`;
 
@@ -51,73 +54,78 @@ async function run() {
     const reviewCollection = client.db("SodiumCafe").collection("review");
     const cartCollection = client.db("SodiumCafe").collection("cart");
 
-
-    app.get('/users/admin/:email', verifyJWT, async (req, res) => {
+    app.get("/users/admin/:email", verifyJWT, async (req, res) => {
       const email = req.params.email;
 
       if (req.decoded.email !== email) {
-        res.send({ admin: false })
+        res.send({ admin: false });
       }
-      const query = { email: email }
+      const query = { email: email };
       const user = await userCollection.findOne(query);
-      const result = { admin: user?.role === 'admin' }
+      const result = { admin: user?.role === "admin" };
       res.send(result);
-    })
+    });
 
-    app.post('/jwt', (req, res) => {
+    app.post("/jwt", (req, res) => {
       const user = req.body;
-      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
-      res.send({ token })
-    })
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1h",
+      });
+      res.send({ token });
+    });
 
     // Warning: use verifyJWT before using verifyAdmin
     const verifyAdmin = async (req, res, next) => {
       const email = req.decoded.email;
-      const query = { email: email }
-      const user = await usersCollection.findOne(query);
-      if (user?.role !== 'admin') {
-        return res.status(403).send({ error: true, message: 'forbidden message' });
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      if (user?.role !== "admin") {
+        return res
+          .status(403)
+          .send({ error: true, message: "forbidden message" });
       }
       next();
-    }
+    };
 
-
-  //  user related api.....................................................................
-  app.get('/users', verifyJWT,verifyAdmin,  async (req, res) => {
-          const result = await userCollection.find().toArray();
-          // console.log(result);  
-          res.send(result);
-        });
-
-  app.post("/users", async (req, res) => {
-    const user = req.body; 
-     const query = { email: user.email }
+    //  user related api.....................................................................
+    app.get("/users", verifyJWT, verifyAdmin, async (req, res) => {
+      const result = await userCollection.find().toArray();
+      // console.log(result);
+      res.send(result);
+    });
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      const query = { email: user.email };
       const existingUser = await userCollection.findOne(query);
-     if (existingUser) {
-       return res.send({ message: 'user already exists' })
-     }
-    const result = await userCollection.insertOne(user);
-    res.send(result);
-  });
-
-      app.patch('/users/admin/:id', async (req, res) => {
+      if (existingUser) {
+        return res.send({ message: "user already exists" });
+      }
+      const result = await userCollection.insertOne(user);
+      res.send(result);
+    });
+    app.patch("/users/admin/:id", async (req, res) => {
       const id = req.params.id;
       console.log(id);
       const filter = { _id: new ObjectId(id) };
       const updateDoc = {
         $set: {
-          role: 'admin'
+          role: "admin",
         },
       };
       const result = await userCollection.updateOne(filter, updateDoc);
       console.log(result);
       res.send(result);
-    })
-  
-  //  menu related api.....................................................................
+    });
+
+    //  menu related api.....................................................................
     app.get("/menues", async (req, res) => {
       const cursor = menuCollection.find();
       const result = await cursor.toArray();
+      res.send(result);
+    });
+    app.post("/menues", verifyJWT, verifyAdmin, async (req, res) => {
+      const newItem = req.body;
+      const result = await menuCollection.insertOne(newItem);
       res.send(result);
     });
 
@@ -134,7 +142,7 @@ async function run() {
       const result = await cartCollection.insertOne(item);
       res.send(result);
     });
-    app.get("/carts", verifyJWT , async (req, res) => {
+    app.get("/carts", verifyJWT, async (req, res) => {
       const email = req.query.email;
       // console.log(email);
       if (!email) {
@@ -142,10 +150,11 @@ async function run() {
       }
 
       const decodedEmail = req.decoded.email;
-            if (email !== decodedEmail) {
-              return res.status(403).send({ error: true, message: 'forbidden access' })
-            }
-      
+      if (email !== decodedEmail) {
+        return res
+          .status(403)
+          .send({ error: true, message: "forbidden access" });
+      }
 
       const query = { email: email };
       const result = await cartCollection.find(query).toArray();
@@ -158,7 +167,6 @@ async function run() {
       res.send(result);
     });
 
-    
     // .............................................................................
     // Send a ping to confirm a successful connection...............................
     await client.db("admin").command({ ping: 1 });
@@ -179,7 +187,6 @@ app.get("/", (req, res) => {
 app.listen(port, () => {
   console.log(`sodium cafe server is runnung on port: ${port}`);
 });
-
 
 //     const paymentCollection = client.db("bistroDb").collection("payments");
 
