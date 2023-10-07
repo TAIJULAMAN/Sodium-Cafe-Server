@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-// const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
+const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
 const express = require("express");
 const app = express();
 const { MongoClient, ServerApiVersion } = require("mongodb");
@@ -53,6 +53,7 @@ async function run() {
     const menuCollection = client.db("SodiumCafe").collection("menu");
     const reviewCollection = client.db("SodiumCafe").collection("review");
     const cartCollection = client.db("SodiumCafe").collection("cart");
+  //const paymentCollection = client.db("bistroDb").collection("payments");
 
     app.get("/users/admin/:email", verifyJWT, async (req, res) => {
       const email = req.params.email;
@@ -128,6 +129,12 @@ async function run() {
       const result = await menuCollection.insertOne(newItem);
       res.send(result);
     });
+    app.delete("/menu/:id", verifyJWT, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await menuCollection.deleteOne(query);
+      res.send(result);
+    });
 
     // review related api..................................................................
     app.get("/reviews", async (req, res) => {
@@ -167,6 +174,24 @@ async function run() {
       res.send(result);
     });
 
+    // create payment intent
+
+    app.post('/create-payment-intent', verifyJWT, async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
+        payment_method_types: ['card']
+      });
+      res.send({
+        clientSecret: paymentIntent.client_secret
+      })
+    })
+
+
+
+
     // .............................................................................
     // Send a ping to confirm a successful connection...............................
     await client.db("admin").command({ ping: 1 });
@@ -188,43 +213,41 @@ app.listen(port, () => {
   console.log(`sodium cafe server is runnung on port: ${port}`);
 });
 
+
+
+
 //     const paymentCollection = client.db("bistroDb").collection("payments");
+
+
 
 //     // users related apis
 //     app.get('/users', verifyJWT, verifyAdmin, async (req, res) => {
 //       const result = await usersCollection.find().toArray();
 //       res.send(result);
 //     });
-
 //     app.post('/users', async (req, res) => {
 //       const user = req.body;
 //       const query = { email: user.email }
 //       const existingUser = await usersCollection.findOne(query);
-
 //       if (existingUser) {
 //         return res.send({ message: 'user already exists' })
 //       }
-
 //       const result = await usersCollection.insertOne(user);
 //       res.send(result);
 //     });
-
 //     // security layer: verifyJWT
 //     // email same
 //     // check admin
 //     app.get('/users/admin/:email', verifyJWT, async (req, res) => {
 //       const email = req.params.email;
-
 //       if (req.decoded.email !== email) {
 //         res.send({ admin: false })
 //       }
-
 //       const query = { email: email }
 //       const user = await usersCollection.findOne(query);
 //       const result = { admin: user?.role === 'admin' }
 //       res.send(result);
 //     })
-
 //     app.patch('/users/admin/:id', async (req, res) => {
 //       const id = req.params.id;
 //       console.log(id);
@@ -234,67 +257,59 @@ app.listen(port, () => {
 //           role: 'admin'
 //         },
 //       };
-
 //       const result = await usersCollection.updateOne(filter, updateDoc);
 //       res.send(result);
-
 //     })
-
 //     // menu related apis
 //     app.get('/menu', async (req, res) => {
 //       const result = await menuCollection.find().toArray();
 //       res.send(result);
 //     })
-
 //     app.post('/menu', verifyJWT, verifyAdmin, async (req, res) => {
 //       const newItem = req.body;
 //       const result = await menuCollection.insertOne(newItem)
 //       res.send(result);
 //     })
-
 //     app.delete('/menu/:id', verifyJWT, verifyAdmin, async (req, res) => {
 //       const id = req.params.id;
 //       const query = { _id: new ObjectId(id) }
 //       const result = await menuCollection.deleteOne(query);
 //       res.send(result);
 //     })
-
 //     // review related apis
 //     app.get('/reviews', async (req, res) => {
 //       const result = await reviewCollection.find().toArray();
 //       res.send(result);
 //     })
-
 //     // cart collection apis
 //     app.get('/carts', verifyJWT, async (req, res) => {
 //       const email = req.query.email;
-
 //       if (!email) {
 //         res.send([]);
 //       }
-
 //       const decodedEmail = req.decoded.email;
 //       if (email !== decodedEmail) {
 //         return res.status(403).send({ error: true, message: 'forbidden access' })
 //       }
-
 //       const query = { email: email };
 //       const result = await cartCollection.find(query).toArray();
 //       res.send(result);
 //     });
-
 //     app.post('/carts', async (req, res) => {
 //       const item = req.body;
 //       const result = await cartCollection.insertOne(item);
 //       res.send(result);
 //     })
-
 //     app.delete('/carts/:id', async (req, res) => {
 //       const id = req.params.id;
 //       const query = { _id: new ObjectId(id) };
 //       const result = await cartCollection.deleteOne(query);
 //       res.send(result);
 //     })
+
+
+
+
 
 //     // create payment intent
 //     app.post('/create-payment-intent', verifyJWT, async (req, res) => {
