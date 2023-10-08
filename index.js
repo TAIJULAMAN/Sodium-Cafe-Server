@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
-const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
+// const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
+const stripe = require('stripe')('sk_test_51NxnBwLmYXVao92X5m3O95RNiIR5KXGj2dDmCSmOYWrPwdyofqr95CpLqRNkeFbFYG7wPYg8XylyRhrZAS94SESp00J40gEol6')
 const express = require("express");
 const app = express();
 const { MongoClient, ServerApiVersion } = require("mongodb");
@@ -22,7 +23,7 @@ const verifyJWT = (req, res, next) => {
   // bearer token
   const token = authorization.split(" ")[1];
 
-  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+  jwt.verify(token, process.env.ACCESS_TOKEN, (err, decoded) => {
     if (err) {
       return res
         .status(401)
@@ -53,7 +54,7 @@ async function run() {
     const menuCollection = client.db("SodiumCafe").collection("menu");
     const reviewCollection = client.db("SodiumCafe").collection("review");
     const cartCollection = client.db("SodiumCafe").collection("cart");
-  //const paymentCollection = client.db("bistroDb").collection("payments");
+  const paymentCollection = client.db("SodiumCafe").collection("payments");
 
     app.get("/users/admin/:email", verifyJWT, async (req, res) => {
       const email = req.params.email;
@@ -69,7 +70,7 @@ async function run() {
 
     app.post("/jwt", (req, res) => {
       const user = req.body;
-      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN, {
         expiresIn: "1h",
       });
       res.send({ token });
@@ -149,22 +150,22 @@ async function run() {
       const result = await cartCollection.insertOne(item);
       res.send(result);
     });
-    app.get("/carts", verifyJWT, async (req, res) => {
+    app.get('/carts', verifyJWT, async (req, res) => {
       const email = req.query.email;
-      // console.log(email);
+
       if (!email) {
         res.send([]);
       }
 
       const decodedEmail = req.decoded.email;
       if (email !== decodedEmail) {
-        return res
-          .status(403)
-          .send({ error: true, message: "forbidden access" });
+        return res.status(403).send({ error: true, message: 'forbidden access' })
       }
 
       const query = { email: email };
-      const result = await cartCollection.find(query).toArray();
+      
+      const cursor = await cartCollection.find(query);
+      const result = await cursor.toArray();
       res.send(result);
     });
     app.delete("/carts/:id", async (req, res) => {
@@ -176,7 +177,7 @@ async function run() {
 
     // create payment intent
 
-    app.post('/create-payment-intent', verifyJWT, async (req, res) => {
+    app.post('/create-payment-intent', verifyJWT , async (req, res) => {
       const { price } = req.body;
       const amount = parseInt(price * 100);
       const paymentIntent = await stripe.paymentIntents.create({
@@ -187,6 +188,16 @@ async function run() {
       res.send({
         clientSecret: paymentIntent.client_secret
       })
+    })
+
+    app.post('/payments', verifyJWT, async (req, res) => {
+      const payment = req.body;
+      const insertResult = await paymentCollection.insertOne(payment);
+
+      const query = { _id: { $in: payment.cartItems.map(id => new ObjectId(id)) } }
+      const deleteResult = await cartCollection.deleteMany(query)
+
+      res.send({ insertResult, deleteResult });
     })
 
 
